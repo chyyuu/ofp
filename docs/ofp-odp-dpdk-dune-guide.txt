@@ -1,0 +1,81 @@
+
+code in os1
+
+dune:         ~/chy/github/dune     branch: v4.4
+dpdk-dune:~/chy/dpdk-git           branch: on_dune     
+odp-dpdk:  ~/chy/ofp-odp-dpdk/scripts/odp-dpdk/    branch: odp-dpdk-1.7-for-dune
+check-odp: ~/chy/ofp-odp-dpdk/scripts/check-odp/   branch: master
+ofp:            ~/chy/ofp-odp-dpdk/  branch: for-odp-1.7-with-dpdk-dune
+
+dpdk 是基于v2.2 dune是基于v4.4  odp-dpdk是基于v1.7  ofp史基于v1.1
+check-odp是便于编译的一个脚本集合
+
+编译过程：
+0 目录结构如上
+
+1. 编译dune
+make 
+2. 编译dpdk-dune
+sudo apt-get install libpcap-dev
+cd <dpdk-dir>
+make config T=x86_64-native-linuxapp-gcc O=x86_64-native-linuxapp-gcc
+Set 
+   CONFIG_RTE_BUILD_COMBINE_LIBS=y
+   CONFIG_RTE_BUILD_SHARED_LIB=n 
+in  <dpdk-dir>/x86_64-native-linuxapp-gcc/.config file
+
+Note: to use odp-dpdk without DPDK supported NIC's enable pcap pmd:
+    sed -ri 's,(CONFIG_RTE_LIBRTE_PMD_PCAP=).*,\1y,' .config
+
+Note: if non-intel SFP's are used in IXGBE, then:
+    sed -ri 's,(CONFIG_RTE_LIBRTE_IXGBE_ALLOW_UNSUPPORTED_SFP=).*,\1y,' .config
+
+建立符号链接
+<dpdk-dir>/x86_64-native-linuxapp-gcc/lib/libdune.a -> /home/os/chy/github/dune/libdune/libdune.a
+
+3. 编译odp-dpdk和ofp
+建立符号链接
+<ofp-dir>/scripts/dpdk ->  /home/os/chy/dpdk-git
+
+in <ofp-dir>
+./scripts/devbuild_ofp_odp_dpdk-step5.sh
+
+编译成功后，所有的库和执行码在 
+<ofp-dir>/scripts/check-odp/new-build 下
+
+
+执行：
+<ofp-dir>/scripts/check-odp/new-build/bin下有很多生成的执行程序
+
+1 l2fwd
+在os1中
+in <dune_dir>, insmod kern/dune.ko
+用dpdk/tools/setup.sh, 建立256个2MB pages, bind 两块ixgbe网卡 
+
+export ODP_PLATFORM_PARAMS="-c 7 " 用3个core, "-c 7 --dune "  用3个core且是dune模式
+
+odp_l2fwd -i 0,1 用0,1两个网卡
+
+在os2中设置环境
+os@os-2 ~/ix (vfio*) $ more setup_nic.sh 
+#!/bin/bash
+
+sudo modprobe -r ixgbe
+sudo modprobe ixgbe
+sleep 3
+sudo ip addr add 192.168.12.2/24 dev enp4s0f0
+sudo arp -s 192.168.12.1 00:16:31:ff:a6:b6
+
+sudo tcpdump -i enp4s0f1 监听第二个端口
+
+然后在tcpdump的输出中就可以看到输出了
+
+2 ofp_test_init
+在os1中
+in <dune_dir>, insmod kern/dune.ko
+用dpdk/tools/setup.sh, 建立256个2MB pages, bind 两块ixgbe网卡 
+
+export ODP_PLATFORM_PARAMS="-c 7 " 用3个core, "-c 7 --dune "  用3个core且是dune模式
+
+ofp_test_init即可
+
